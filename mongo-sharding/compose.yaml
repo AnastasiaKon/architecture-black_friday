@@ -1,0 +1,48 @@
+name: mongo-sharding
+
+services:
+  # Сервер конфигурации: хранит метаданные кластера (маппинг данных на шарды)
+  configSrv:
+    image: mongo:latest
+    command: ["--configsvr", "--replSet", "config_server", "--bind_ip_all", "--port", "27017"]
+    volumes:
+      - configSrv_data:/data/db
+
+  # Шард 1 — отдельный Replica Set "shard1"
+  shard1:
+    image: mongo:latest
+    command: ["--shardsvr", "--replSet", "shard1", "--bind_ip_all", "--port", "27018"]
+    volumes:
+      - shard1_data:/data/db
+
+  # Шард 2 — отдельный Replica Set "shard2"
+  shard2:
+    image: mongo:latest
+    command: ["--shardsvr", "--replSet", "shard2", "--bind_ip_all", "--port", "27019"]
+    volumes:
+      - shard2_data:/data/db
+
+  # Роутер: точка входа, определяет, на какой шард отправить запрос
+  mongos_router:
+    image: mongo:latest
+    command: ["mongos", "--configdb", "config_server/configSrv:27017", "--bind_ip_all", "--port", "27020"]
+    depends_on:
+      - configSrv
+      - shard1
+      - shard2
+
+  # Приложение подключается к роутеру mongos
+  pymongo_api:
+    image: kazhem/pymongo_api:1.0.0
+    depends_on:
+      - mongos_router
+    ports:
+      - "8080:8080"
+    environment:
+      MONGODB_URL: "mongodb://mongos_router:27020"
+      MONGODB_DATABASE_NAME: "somedb"
+
+volumes:
+  configSrv_data:
+  shard1_data:
+  shard2_data:

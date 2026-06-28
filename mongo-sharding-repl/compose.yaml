@@ -1,0 +1,76 @@
+name: mongo-sharding-repl
+
+services:
+  # Сервер конфигурации (replica set "config_server")
+  configSrv:
+    image: mongo:latest
+    command: ["--configsvr", "--replSet", "config_server", "--bind_ip_all", "--port", "27017", "--wiredTigerCacheSizeGB", "0.25"]
+    volumes:
+      - configSrv_data:/data/db
+
+  # ---------- Шард 1: replica set "shard1" (3 узла) ----------
+  shard1-1:
+    image: mongo:latest
+    command: ["--shardsvr", "--replSet", "shard1", "--bind_ip_all", "--port", "27018", "--wiredTigerCacheSizeGB", "0.25"]
+    volumes:
+      - shard1_1_data:/data/db
+  shard1-2:
+    image: mongo:latest
+    command: ["--shardsvr", "--replSet", "shard1", "--bind_ip_all", "--port", "27018", "--wiredTigerCacheSizeGB", "0.25"]
+    volumes:
+      - shard1_2_data:/data/db
+  shard1-3:
+    image: mongo:latest
+    command: ["--shardsvr", "--replSet", "shard1", "--bind_ip_all", "--port", "27018", "--wiredTigerCacheSizeGB", "0.25"]
+    volumes:
+      - shard1_3_data:/data/db
+
+  # ---------- Шард 2: replica set "shard2" (3 узла) ----------
+  shard2-1:
+    image: mongo:latest
+    command: ["--shardsvr", "--replSet", "shard2", "--bind_ip_all", "--port", "27019", "--wiredTigerCacheSizeGB", "0.25"]
+    volumes:
+      - shard2_1_data:/data/db
+  shard2-2:
+    image: mongo:latest
+    command: ["--shardsvr", "--replSet", "shard2", "--bind_ip_all", "--port", "27019", "--wiredTigerCacheSizeGB", "0.25"]
+    volumes:
+      - shard2_2_data:/data/db
+  shard2-3:
+    image: mongo:latest
+    command: ["--shardsvr", "--replSet", "shard2", "--bind_ip_all", "--port", "27019", "--wiredTigerCacheSizeGB", "0.25"]
+    volumes:
+      - shard2_3_data:/data/db
+
+  # Роутер mongos
+  mongos_router:
+    image: mongo:latest
+    command: ["mongos", "--configdb", "config_server/configSrv:27017", "--bind_ip_all", "--port", "27020"]
+    depends_on:
+      - configSrv
+      - shard1-1
+      - shard1-2
+      - shard1-3
+      - shard2-1
+      - shard2-2
+      - shard2-3
+
+  # Приложение
+  pymongo_api:
+    image: kazhem/pymongo_api:1.0.0
+    depends_on:
+      - mongos_router
+    ports:
+      - "8080:8080"
+    environment:
+      MONGODB_URL: "mongodb://mongos_router:27020"
+      MONGODB_DATABASE_NAME: "somedb"
+
+volumes:
+  configSrv_data:
+  shard1_1_data:
+  shard1_2_data:
+  shard1_3_data:
+  shard2_1_data:
+  shard2_2_data:
+  shard2_3_data:
